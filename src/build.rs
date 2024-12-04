@@ -68,6 +68,15 @@ fn copy_dir(src: &Path, dest: &Path) -> eyre::Result<()> {
     Ok(())
 }
 
+fn get_templates(dir: &Path) -> eyre::Result<Vec<PathBuf>> {
+    let templates: Vec<PathBuf> = fs::read_dir(dir)?
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .collect();
+
+    Ok(templates)
+}
+
 pub fn build_capsule(config: &Config) -> eyre::Result<()> {
     let warn_handler = |msg: &str| eprintln!("Warning: {}", msg);
 
@@ -118,11 +127,16 @@ pub fn build_capsule(config: &Config) -> eyre::Result<()> {
     }
 
     // Generate individual templated pages
+    let page_templates = get_templates(&config.page_template_dir).wrap_err(format!(
+        "Could not load templates from: {}",
+        config.page_template_dir.to_string_lossy()
+    ))?;
+
     for page in pages.pages {
         let page_path = config.public_dir.join(&page.path);
 
         EntryTemplateData::from(page)
-            .render_page(&pages_data, &config.page_template_file, &page_path)
+            .render_page(&pages_data, &page_templates, &page_path)
             .wrap_err(format!(
                 "failed rendering post: {}",
                 page_path.to_string_lossy()

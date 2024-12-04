@@ -120,6 +120,11 @@ impl From<PageEntry> for EntryTemplateData {
     }
 }
 
+fn create_named_template<P: AsRef<Path>>(path: &P) -> (&Path, Option<&str>) {
+    let path = path.as_ref();
+    (path, path.file_stem().and_then(|stem| stem.to_str()))
+}
+
 impl EntryTemplateData {
     pub fn render_post(
         &self,
@@ -152,15 +157,32 @@ impl EntryTemplateData {
         Ok(())
     }
 
-    pub fn render_page(
+    pub fn render_page<P: AsRef<Path>>(
         &self,
         pages: &PagesTemplateData,
-        template: &Path,
+        templates: &[P],
         output: &Path,
     ) -> eyre::Result<()> {
         let mut tera = Tera::default();
+        let templates: Vec<_> = templates
+            .into_iter()
+            .map(|tmpl_path| create_named_template(tmpl_path))
+            .collect();
 
-        if let Err(err) = tera.add_template_file(template, Some("page")) {
+        //println!("{:#?}", templates);
+
+        let post_template = templates
+            .iter()
+            .find(|(_, name)| name.unwrap_or_default() == "page");
+
+        if let None = post_template {
+            bail!(Error::InvalidPageTemplate {
+                path: output.to_owned(),
+                reason: "page template directory must contain a page.tera file".to_string(),
+            });
+        }
+
+        if let Err(err) = tera.add_template_files(templates) {
             bail!(Error::InvalidPageTemplate {
                 path: output.to_owned(),
                 reason: err.to_string(),

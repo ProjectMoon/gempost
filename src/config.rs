@@ -29,8 +29,8 @@ struct RawConfig {
     index_template_file: PathBuf,
     #[serde(default = "defaults::post_template_file")]
     post_template_file: PathBuf,
-    #[serde(default = "defaults::page_template_file")]
-    page_template_file: PathBuf,
+    #[serde(default = "defaults::page_template_dir")]
+    page_template_dir: PathBuf,
     #[serde(default = "defaults::post_path")]
     post_path: String,
     #[serde(default = "defaults::page_path")]
@@ -73,8 +73,8 @@ mod defaults {
         PathBuf::from("./templates/post.tera")
     }
 
-    pub fn page_template_file() -> PathBuf {
-        PathBuf::from("./templates/page.tera")
+    pub fn page_template_dir() -> PathBuf {
+        PathBuf::from("./templates/pages/.tera")
     }
 
     pub fn post_path() -> String {
@@ -141,7 +141,7 @@ pub struct Config {
     pub pages_dir: PathBuf,
     pub index_template_file: PathBuf,
     pub post_template_file: PathBuf,
-    pub page_template_file: PathBuf,
+    pub page_template_dir: PathBuf,
     pub post_path: String,
     pub page_path: String,
     pub index_path: String,
@@ -164,7 +164,7 @@ impl Config {
             pages_dir: raw.pages_dir,
             index_template_file: raw.index_template_file,
             post_template_file: raw.post_template_file,
-            page_template_file: raw.page_template_file,
+            page_template_dir: raw.page_template_dir,
             post_path: raw.post_path,
             page_path: raw.page_path,
             index_path: raw.index_path,

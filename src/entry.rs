@@ -31,6 +31,7 @@ struct RawEntryMetadata {
     lang: Option<String>,
     categories: Option<Vec<String>>,
     draft: Option<bool>,
+    template: Option<String>,
     values: Option<YamlMapping>,
 }
 
@@ -82,6 +83,7 @@ pub struct EntryMetadata {
     pub lang: Option<String>,
     pub categories: Vec<String>,
     pub draft: bool,
+    pub template: Option<String>,
     pub values: YamlMapping,
 }
 
@@ -123,6 +125,7 @@ impl EntryMetadata {
             categories: raw.categories.unwrap_or_default(),
             // If the `draft` property is missing, we assume it's not a draft.
             draft: raw.draft.unwrap_or(false),
+            template: raw.template
         })
     }
 }

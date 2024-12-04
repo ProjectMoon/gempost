@@ -71,6 +71,7 @@ pub struct EntryTemplateData {
     pub rights: Option<String>,
     pub lang: Option<String>,
     pub categories: Vec<String>,
+    pub template: Option<String>,
     pub values: serde_yaml::Mapping,
 }
 
@@ -92,6 +93,7 @@ impl From<Entry> for EntryTemplateData {
             rights: params.metadata.rights,
             lang: params.metadata.lang,
             categories: params.metadata.categories,
+            template: params.metadata.template,
             values: params.metadata.values,
         }
     }
@@ -115,6 +117,7 @@ impl From<PageEntry> for EntryTemplateData {
             rights: params.metadata.rights,
             lang: params.metadata.lang,
             categories: params.metadata.categories,
+            template: params.metadata.template,
             values: params.metadata.values,
         }
     }
@@ -169,13 +172,11 @@ impl EntryTemplateData {
             .map(|tmpl_path| create_named_template(tmpl_path))
             .collect();
 
-        //println!("{:#?}", templates);
-
-        let post_template = templates
+        let page_template = templates
             .iter()
             .find(|(_, name)| name.unwrap_or_default() == "page");
 
-        if let None = post_template {
+        if let None = page_template {
             bail!(Error::InvalidPageTemplate {
                 path: output.to_owned(),
                 reason: "page template directory must contain a page.tera file".to_string(),
@@ -207,7 +208,9 @@ impl EntryTemplateData {
         context.insert("values", &self.values);
         context.insert("breadcrumb", &breadcrumb);
 
-        if let Err(err) = tera.render_to("page", &context, dest_file) {
+        let template_name = self.template.as_deref().unwrap_or("page");
+
+        if let Err(err) = tera.render_to(template_name, &context, dest_file) {
             bail!(Error::InvalidPageTemplate {
                 path: output.to_owned(),
                 reason: err.to_string(),

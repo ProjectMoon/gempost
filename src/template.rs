@@ -1,3 +1,4 @@
+use std::error::Error;
 use std::fs::{self, File};
 use std::path::{Component, Path, PathBuf};
 
@@ -7,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use tera::{Context, Tera};
 
 use crate::entry::{AuthorMetadata, Entry};
-use crate::error::Error;
+use crate::error::Error as GempostError;
 use crate::feed::{Feed, FeedAuthor};
 use crate::page::Pages;
 use crate::page_entry::PageEntry;
@@ -71,7 +72,7 @@ pub struct EntryTemplateData {
     pub rights: Option<String>,
     pub lang: Option<String>,
     pub categories: Vec<String>,
-    pub template: Option<String>,
+    pub layout: Option<String>,
     pub values: serde_yaml::Mapping,
 }
 
@@ -93,7 +94,7 @@ impl From<Entry> for EntryTemplateData {
             rights: params.metadata.rights,
             lang: params.metadata.lang,
             categories: params.metadata.categories,
-            template: params.metadata.template,
+            layout: params.metadata.layout,
             values: params.metadata.values,
         }
     }
@@ -117,7 +118,7 @@ impl From<PageEntry> for EntryTemplateData {
             rights: params.metadata.rights,
             lang: params.metadata.lang,
             categories: params.metadata.categories,
-            template: params.metadata.template,
+            layout: params.metadata.layout,
             values: params.metadata.values,
         }
     }
@@ -126,6 +127,30 @@ impl From<PageEntry> for EntryTemplateData {
 fn create_named_template<P: AsRef<Path>>(path: &P) -> (&Path, Option<&str>) {
     let path = path.as_ref();
     (path, path.file_stem().and_then(|stem| stem.to_str()))
+}
+
+fn to_error(output: &Path, url: &str, err: tera::Error) -> eyre::Result<()> {
+    let err_message = err.to_string();
+    let src_message = err.source().map(|e| e.to_string());
+
+    let mut errors: Vec<&dyn Error> = vec![&err];
+    let mut curr_err = err.source();
+
+    while let Some(error) = curr_err {
+        errors.push(error);
+        curr_err = error.source();
+    }
+
+    let message = errors
+        .into_iter()
+        .map(|e| e.to_string())
+        .collect::<Vec<_>>()
+        .join(" - ");
+
+    bail!(GempostError::InvalidPageTemplate {
+        path: output.to_owned(),
+        reason: format!("{}: {}", url, message)
+    });
 }
 
 impl EntryTemplateData {
@@ -138,7 +163,7 @@ impl EntryTemplateData {
         let mut tera = Tera::default();
 
         if let Err(err) = tera.add_template_file(template, Some("post")) {
-            bail!(Error::InvalidPostPageTemplate {
+            bail!(GempostError::InvalidPostPageTemplate {
                 path: output.to_owned(),
                 reason: err.to_string(),
             });
@@ -151,7 +176,7 @@ impl EntryTemplateData {
         let dest_file = File::create(output).wrap_err("failed creating gemlog post page file")?;
 
         if let Err(err) = tera.render_to("post", &context, dest_file) {
-            bail!(Error::InvalidPostPageTemplate {
+            bail!(GempostError::InvalidPostPageTemplate {
                 path: output.to_owned(),
                 reason: err.to_string(),
             });
@@ -161,7 +186,7 @@ impl EntryTemplateData {
     }
 
     pub fn render_page<P: AsRef<Path>>(
-        &self,
+        &mut self,
         pages: &PagesTemplateData,
         templates: &[P],
         output: &Path,
@@ -176,17 +201,24 @@ impl EntryTemplateData {
             .iter()
             .find(|(_, name)| name.unwrap_or_default() == "page");
 
-        if let None = page_template {
-            bail!(Error::InvalidPageTemplate {
+        if let Some(_) = page_template {
+            bail!(GempostError::InvalidPageTemplate {
                 path: output.to_owned(),
-                reason: "page template directory must contain a page.tera file".to_string(),
+                reason: "page template directory must NOT contain a page.tera file".to_string(),
             });
         }
 
         if let Err(err) = tera.add_template_files(templates) {
-            bail!(Error::InvalidPageTemplate {
+            bail!(GempostError::InvalidPageTemplate {
                 path: output.to_owned(),
                 reason: err.to_string(),
+            });
+        }
+
+        if let Err(err) = tera.add_raw_template("page", &self.body) {
+            bail!(GempostError::InvalidPageTemplate {
+                path: output.to_owned(),
+                reason: format!("{}: {}", self.url, err.to_string())
             });
         }
 
@@ -208,13 +240,17 @@ impl EntryTemplateData {
         context.insert("values", &self.values);
         context.insert("breadcrumb", &breadcrumb);
 
-        let template_name = self.template.as_deref().unwrap_or("page");
+        // render content itself, then render via layout.
+        let pre_rendered = match tera.render("page", &context) {
+            Ok(rendered) => rendered,
+            Err(err) => return to_error(output, &self.url, err),
+        };
 
-        if let Err(err) = tera.render_to(template_name, &context, dest_file) {
-            bail!(Error::InvalidPageTemplate {
-                path: output.to_owned(),
-                reason: err.to_string(),
-            });
+        context.insert("content", &pre_rendered);
+
+        let layout_template = self.layout.as_deref().unwrap_or("base");
+        if let Err(err) = tera.render_to(layout_template, &context, dest_file) {
+            return to_error(output, &self.url, err);
         }
 
         Ok(())
@@ -226,7 +262,7 @@ impl FeedTemplateData {
         let mut tera = Tera::default();
 
         if let Err(err) = tera.add_template_file(template, Some("index")) {
-            bail!(Error::InvalidIndexPageTemplate {
+            bail!(GempostError::InvalidIndexPageTemplate {
                 reason: err.to_string()
             });
         }
@@ -243,7 +279,7 @@ impl FeedTemplateData {
         let dest_file = File::create(output).wrap_err("failed creating gemlog index page file")?;
 
         if let Err(err) = tera.render_to("index", &context, dest_file) {
-            bail!(Error::InvalidIndexPageTemplate {
+            bail!(GempostError::InvalidIndexPageTemplate {
                 reason: err.to_string(),
             });
         }
@@ -315,7 +351,7 @@ impl PostPathTemplateData {
         let mut tera = Tera::default();
 
         if let Err(err) = tera.add_raw_template("path", template) {
-            bail!(Error::InvalidPostPath {
+            bail!(GempostError::InvalidPostPath {
                 template: template.to_owned(),
                 reason: err.to_string(),
             });
@@ -329,7 +365,7 @@ impl PostPathTemplateData {
 
         match tera.render("path", &context) {
             Ok(path) => Ok(path),
-            Err(err) => bail!(Error::InvalidPostPath {
+            Err(err) => bail!(GempostError::InvalidPostPath {
                 template: template.to_owned(),
                 reason: err.to_string(),
             }),
@@ -368,7 +404,7 @@ impl PagePathTemplateData {
         let mut tera = Tera::default();
 
         if let Err(err) = tera.add_raw_template("path", template) {
-            bail!(Error::InvalidPostPath {
+            bail!(GempostError::InvalidPostPath {
                 template: template.to_owned(),
                 reason: err.to_string(),
             });
@@ -380,7 +416,7 @@ impl PagePathTemplateData {
 
         match tera.render("path", &context) {
             Ok(path) => Ok(path),
-            Err(err) => bail!(Error::InvalidPostPath {
+            Err(err) => bail!(GempostError::InvalidPostPath {
                 template: template.to_owned(),
                 reason: err.to_string(),
             }),

@@ -187,7 +187,7 @@ impl EntryTemplateData {
 
     pub fn render_page<P: AsRef<Path>>(
         &mut self,
-        pages: &PagesTemplateData,
+        pages_data: &PagesTemplateData,
         templates: &[P],
         output: &Path,
     ) -> eyre::Result<()> {
@@ -233,12 +233,13 @@ impl EntryTemplateData {
         let dest_file =
             File::create(output).wrap_err("failed creating gemlog templated page file")?;
 
-        let breadcrumb = create_breadcrumb(output, &pages.pages_dir);
+        let breadcrumb = create_breadcrumb(output, &pages_data.pages_dir);
 
         let mut context = Context::new();
         context.insert("entry", self);
         context.insert("values", &self.values);
         context.insert("breadcrumb", &breadcrumb);
+        context.insert("feed", &pages_data.feed_data);
 
         // render content itself, then render via layout.
         let pre_rendered = match tera.render("page", &context) {
@@ -474,6 +475,7 @@ pub struct PagesTemplateData {
     pub capsule_url: String,
     pub index_url: String,
     pub pages_dir: PathBuf,
+    pub feed_data: FeedTemplateData,
 }
 
 impl From<Pages> for PagesTemplateData {
@@ -482,6 +484,7 @@ impl From<Pages> for PagesTemplateData {
             capsule_url: pages.capsule_url.to_string(),
             index_url: pages.index_url.to_string(),
             pages_dir: pages.pages_path,
+            feed_data: FeedTemplateData::from(pages.feed),
         }
     }
 }

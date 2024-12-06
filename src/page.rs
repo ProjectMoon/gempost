@@ -5,6 +5,7 @@ use eyre::bail;
 use url::Url;
 
 use crate::config::{AuthorConfig, Config};
+use crate::feed::Feed;
 use crate::page_entry::{PageEntry, PageLocation, PageLocationParams};
 use crate::template::{PagePathParams, PagePathTemplateData};
 
@@ -34,10 +35,15 @@ pub struct Pages {
     pub author: Option<FeedAuthor>,
     pub pages_path: PathBuf,
     pub pages: Vec<PageEntry>,
+    pub feed: Feed,
 }
 
 impl Pages {
-    pub fn from_config(config: &Config, warn_handler: impl Fn(&str)) -> eyre::Result<Self> {
+    pub fn from_config(
+        config: &Config,
+        feed: Feed,
+        warn_handler: impl Fn(&str),
+    ) -> eyre::Result<Self> {
         let locator = |params: PageLocationParams| -> eyre::Result<PageLocation> {
             let mut page_url = config.url.clone();
 
@@ -87,6 +93,7 @@ impl Pages {
         Ok(Pages {
             capsule_url: config.url.clone(),
             index_url,
+            feed,
             pages_path: config.pages_dir.clone(),
             pages: entries,
             updated: last_updated,

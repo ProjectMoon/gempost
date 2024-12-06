@@ -83,7 +83,8 @@ pub fn build_capsule(config: &Config) -> eyre::Result<()> {
     let feed = Feed::from_config(config, warn_handler).wrap_err("failed parsing config file")?;
     let feed_data = FeedTemplateData::from(feed.clone());
 
-    let pages = Pages::from_config(config, warn_handler).wrap_err("failed parsing config file")?;
+    let pages = Pages::from_config(config, feed.clone(), warn_handler)
+        .wrap_err("failed parsing config file")?;
     let pages_data = PagesTemplateData::from(pages.clone());
 
     // Delete the public dir. We do this because static files might have been removed since the

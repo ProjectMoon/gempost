@@ -65,9 +65,10 @@ pub struct EntryTemplateData {
     pub url: String,
     pub title: String,
     pub body: String,
-    pub updated: String,
+    pub updated: DateTime<FixedOffset>,
     pub summary: Option<String>,
-    pub published: Option<String>,
+    pub published: Option<DateTime<FixedOffset>>,
+    pub publish_year: Option<i32>,
     pub author: Option<EntryAuthorTemplateData>,
     pub rights: Option<String>,
     pub lang: Option<String>,
@@ -78,18 +79,17 @@ pub struct EntryTemplateData {
 
 impl From<Entry> for EntryTemplateData {
     fn from(params: Entry) -> Self {
+        let published = params.metadata.published.clone();
+
         Self {
             id: params.metadata.id,
             url: params.url.to_string(),
             title: params.metadata.title,
             body: params.body,
-            updated: params.metadata.updated.to_rfc3339(),
+            updated: params.metadata.updated.clone(),
             summary: params.metadata.summary,
-            published: params
-                .metadata
-                .published
-                .as_ref()
-                .map(DateTime::<FixedOffset>::to_rfc3339),
+            published,
+            publish_year: published.map(|d| d.year()),
             author: params.metadata.author.map(Into::into),
             rights: params.metadata.rights,
             lang: params.metadata.lang,
@@ -102,18 +102,16 @@ impl From<Entry> for EntryTemplateData {
 
 impl From<PageEntry> for EntryTemplateData {
     fn from(params: PageEntry) -> Self {
+        let published = params.metadata.published.clone();
         Self {
             id: params.metadata.id,
             url: params.url.to_string(),
             title: params.metadata.title,
             body: params.body,
-            updated: params.metadata.updated.to_rfc3339(),
+            updated: params.metadata.updated.clone(),
             summary: params.metadata.summary,
-            published: params
-                .metadata
-                .published
-                .as_ref()
-                .map(DateTime::<FixedOffset>::to_rfc3339),
+            published,
+            publish_year: published.map(|d| d.year()),
             author: params.metadata.author.map(Into::into),
             rights: params.metadata.rights,
             lang: params.metadata.lang,

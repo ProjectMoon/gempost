@@ -1,10 +1,13 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use chrono::{DateTime, FixedOffset, Local};
 use eyre::bail;
+use serde::Serialize;
+use serde_yaml::Mapping as YamlMapping;
 use url::Url;
 
 use crate::config::{AuthorConfig, Config};
+use crate::entry::EntryMetadata;
 use crate::feed::Feed;
 use crate::page_entry::{PageEntry, PageLocation, PageLocationParams};
 use crate::template::{PagePathParams, PagePathTemplateData};
@@ -101,4 +104,28 @@ impl Pages {
             author: config.author.as_ref().cloned().map(Into::into),
         })
     }
+
+    pub fn find_by_dir(&self, dir: &str) -> Vec<ByPath> {
+        self.pages
+            .iter()
+            .filter_map(|p| {
+                if p.path.starts_with(dir) {
+                    Some(ByPath {
+                        path: p.path.as_ref(),
+                        title: &p.metadata.title,
+                        metadata: &p.metadata.values,
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+}
+
+#[derive(Serialize)]
+pub struct ByPath<'a> {
+    title: &'a str,
+    path: &'a Path,
+    metadata: &'a YamlMapping,
 }

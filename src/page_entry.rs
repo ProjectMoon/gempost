@@ -4,12 +4,13 @@ use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 
-use eyre::{eyre, WrapErr};
+use eyre::{WrapErr, eyre};
+use serde::Serialize;
 use url::Url;
 use walkdir::WalkDir;
 
 use crate::entry::EntryMetadata;
-use crate::entry_util::{check_mismatched_files, PathPair, METADATA_FILE_EXT, POST_FILE_EXT};
+use crate::entry_util::{METADATA_FILE_EXT, POST_FILE_EXT, PathPair, check_mismatched_files};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PageEntry {

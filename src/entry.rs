@@ -4,12 +4,12 @@ use std::path::Path;
 use std::{fs::File, path::PathBuf};
 
 use chrono::{DateTime, FixedOffset};
-use eyre::{bail, eyre, WrapErr};
-use serde::Deserialize;
+use eyre::{WrapErr, bail, eyre};
+use serde::{Deserialize, Serialize};
 use serde_yaml::Mapping as YamlMapping;
 use url::Url;
 
-use crate::entry_util::{check_mismatched_files, PathPair, METADATA_FILE_EXT, POST_FILE_EXT};
+use crate::entry_util::{METADATA_FILE_EXT, POST_FILE_EXT, PathPair, check_mismatched_files};
 use crate::error::Error;
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]

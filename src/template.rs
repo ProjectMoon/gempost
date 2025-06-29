@@ -3,7 +3,7 @@ use std::fs::{self, File};
 use std::path::{Component, Path, PathBuf};
 
 use chrono::{DateTime, Datelike, FixedOffset};
-use eyre::{bail, eyre, WrapErr};
+use eyre::{WrapErr, bail, eyre};
 use serde::{Deserialize, Serialize};
 use tera::{Context, Tera};
 
@@ -12,6 +12,34 @@ use crate::error::Error as GempostError;
 use crate::feed::{Feed, FeedAuthor};
 use crate::page::Pages;
 use crate::page_entry::PageEntry;
+
+mod template_funcs {
+    use std::collections::HashMap;
+
+    use eyre::OptionExt;
+    use tera::{Function, Result, Value, from_value, to_value};
+
+    use crate::page::Pages;
+
+    // TODO: functions for generating dynamic data! This should
+    // replace the sections crap. So as a more generic version of
+    // this, we want to return a list of pages under a directory. Then
+    // we can pass off to template, and construct menu that way.
+    pub fn pages_in_dir(pages: Pages) -> impl Function {
+        Box::new(move |args: &HashMap<String, Value>| -> Result<Value> {
+            let dir = args.get("dir").and_then(|v| v.as_str()).unwrap_or_default();
+            Ok(to_value(pages.find_by_dir(dir))?)
+
+            // match args.get("name") {
+            //     Some(val) => match from_value::<String>(val.clone()) {
+            //         Ok(v) => Ok(to_value("blah".to_string()).unwrap()),
+            //         Err(_) => Err("oops".into()),
+            //     },
+            //     None => Err("oops".into()),
+            // }
+        })
+    }
+}
 
 fn create_breadcrumb(file_path: &Path, base_path: &Path) -> Vec<String> {
     // Strip the first N components, which will give us the
@@ -185,11 +213,15 @@ impl EntryTemplateData {
 
     pub fn render_page<P: AsRef<Path>>(
         &mut self,
+        pages: Pages,
         pages_data: &PagesTemplateData,
         templates: &[P],
         output: &Path,
     ) -> eyre::Result<()> {
         let mut tera = Tera::default();
+
+        tera.register_function("pages_by_dir", template_funcs::pages_in_dir(pages));
+
         let templates: Vec<_> = templates
             .into_iter()
             .map(|tmpl_path| create_named_template(tmpl_path))

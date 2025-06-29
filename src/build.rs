@@ -2,7 +2,7 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use eyre::{bail, WrapErr};
+use eyre::{WrapErr, bail};
 
 use crate::config::Config;
 use crate::feed::Feed;
@@ -61,7 +61,9 @@ fn copy_dir(src: &Path, dest: &Path) -> eyre::Result<()> {
             std::os::unix::fs::symlink(link_dest, &dest_path)
                 .wrap_err("failed creating symlink in dest dir")?;
         } else {
-            bail!("There is a file in the static directory which is not a regular file, directory, or symbolic link.");
+            bail!(
+                "There is a file in the static directory which is not a regular file, directory, or symbolic link."
+            );
         }
     }
 
@@ -133,11 +135,17 @@ pub fn build_capsule(config: &Config) -> eyre::Result<()> {
         config.page_template_dir.to_string_lossy()
     ))?;
 
+    let pages_clone = pages.clone();
     for page in pages.pages {
         let page_path = config.public_dir.join(&page.path);
 
         EntryTemplateData::from(page)
-            .render_page(&pages_data, &page_templates, &page_path)
+            .render_page(
+                pages_clone.clone(),
+                &pages_data,
+                &page_templates,
+                &page_path,
+            )
             .wrap_err(format!(
                 "failed rendering post: {}",
                 page_path.to_string_lossy()
